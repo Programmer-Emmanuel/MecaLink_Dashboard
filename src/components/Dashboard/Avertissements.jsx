@@ -168,7 +168,6 @@ export function Avertissements() {
       // Ajouter les champs texte
       adData.append('title', values.title);
       adData.append('description', values.description);
-      adData.append('link', values.link);
       adData.append('isActive', values.isActive);
       
       // Ajouter le fichier s'il existe
@@ -379,12 +378,6 @@ export function Avertissements() {
               <Input.TextArea />
             </Form.Item>
             <Form.Item
-              name="link"
-              label={<span className="text-slate-300">Lien (URL)</span>}
-            >
-              <Input />
-            </Form.Item>
-            <Form.Item
               name="isActive"
               label={<span className="text-slate-300">Statut</span>}
               valuePropName="checked"
@@ -417,12 +410,6 @@ export function Avertissements() {
               label={<span className="text-slate-300">Description</span>}
             >
               <Input.TextArea />
-            </Form.Item>
-            <Form.Item
-              name="link"
-              label={<span className="text-slate-300">Lien (URL)</span>}
-            >
-              <Input />
             </Form.Item>
             <Form.Item
               label={<span className="text-slate-300">Image</span>}

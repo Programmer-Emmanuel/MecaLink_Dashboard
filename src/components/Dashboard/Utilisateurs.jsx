@@ -309,7 +309,6 @@ export function Utilisateurs() {
                           <>
                             <p><span className="text-slate-400">Adresse:</span> <span className="text-white">{userDetails.address}</span></p>
                             <p><span className="text-slate-400">Note moyenne:</span> <span className="text-white">{userDetails.note || 'Aucune'}</span></p>
-                            <p><span className="text-slate-400">Horaires:</span> <span className="text-white">{userDetails.openingHours}</span></p>
                           </>
                         )}
                       </div>

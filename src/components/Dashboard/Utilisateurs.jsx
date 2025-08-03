@@ -327,7 +327,7 @@ export function Utilisateurs() {
                 >
                   <span className="text-white">{result.name}</span>
                   <span className="text-xs text-orange-400 capitalize">
-                    {result.type === 'garagiste' ? 'garage' : result.type}
+                    {result.type === 'garagiste' ? 'garagiste' : result.type}
                   </span>
                 </div>
               ))}

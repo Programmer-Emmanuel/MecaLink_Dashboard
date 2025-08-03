@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from "../../constants/api/api";
+import { FiSearch, FiX } from 'react-icons/fi';
 
 export function Utilisateurs() {
   const [clients, setClients] = useState([]);
+  const [garagistes, setGaragistes] = useState([]);
   const [garages, setGarages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,10 +18,16 @@ export function Utilisateurs() {
     name: '',
     userType: null
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef(null);
 
   const commentsCarouselRef = useRef(null);
   const [currentCommentIndex, setCurrentCommentIndex] = useState(0);
+  const scrollContainerRef = useRef([]);
 
+  // Fetch all users data
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -27,6 +35,9 @@ export function Utilisateurs() {
         
         const clientsRes = await api.get('/admin/users?role=client');
         setClients(clientsRes.data.data.users || []);
+        
+        const garagistesRes = await api.get('/admin/users?role=garage');
+        setGaragistes(garagistesRes.data.data.users || []);
         
         const garagesRes = await api.get('/admin/garages');
         setGarages(garagesRes.data.data.garages || []);
@@ -42,17 +53,67 @@ export function Utilisateurs() {
     fetchUsers();
   }, []);
 
+  // Handle click outside search to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Search function with debounce
+  const handleSearch = useCallback((term) => {
+    if (!term.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const allUsers = [
+      ...clients.map(user => ({ ...user, type: 'client' })),
+      ...garagistes.map(user => ({ ...user, type: 'garagiste' })),
+      ...garages.map(garage => ({ 
+        ...garage, 
+        name: garage.userId?.name || garage.name,
+        type: 'garage'
+      }))
+    ];
+
+    const results = allUsers.filter(user => 
+      user.name.toLowerCase().includes(term.toLowerCase())
+    ).slice(0, 3); // Limit to 3 suggestions
+
+    setSearchResults(results);
+  }, [clients, garagistes, garages]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleSearch(searchTerm);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [searchTerm, handleSearch]);
+
   const fetchUserDetails = async (id, type) => {
     try {
       setDetailsLoading(true);
       const endpoint = type === 'client' 
+        ? `/admin/users/${id}`
+        : type === 'garagiste'
         ? `/admin/users/${id}`
         : `/admin/garages/${id}`;
       
       const response = await api.get(endpoint);
       setUserDetails(response.data.data);
       setSelectedUser({ id, type });
-      setCurrentCommentIndex(0); // Reset carousel index
+      setCurrentCommentIndex(0);
     } catch (err) {
       setError("Erreur lors du chargement des détails");
       console.error(err);
@@ -82,6 +143,14 @@ export function Utilisateurs() {
     }
   };
 
+  const handleScroll = (index, direction) => {
+    const container = scrollContainerRef.current[index];
+    if (container) {
+      const scrollAmount = direction === 'left' ? -300 : 300;
+      container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
   const showDetailsModal = (id, type, name) => {
     fetchUserDetails(id, type);
     setModal({
@@ -91,6 +160,9 @@ export function Utilisateurs() {
       name,
       userType: type
     });
+    setSearchTerm('');
+    setSearchResults([]);
+    setShowSuggestions(false);
   };
 
   const showDeleteModal = (id, type, name) => {
@@ -117,9 +189,13 @@ export function Utilisateurs() {
 
   const confirmDelete = async () => {
     try {
-      if (modal.userType === 'client') {
+      if (modal.userType === 'client' || modal.userType === 'garagiste') {
         await api.delete(`/admin/users/${modal.id}`);
-        setClients(clients.filter(client => client._id !== modal.id));
+        if (modal.userType === 'client') {
+          setClients(clients.filter(client => client._id !== modal.id));
+        } else {
+          setGaragistes(garagistes.filter(garagiste => garagiste._id !== modal.id));
+        }
       } else {
         await api.delete(`/admin/garages/${modal.id}`);
         setGarages(garages.filter(garage => garage._id !== modal.id));
@@ -153,86 +229,159 @@ export function Utilisateurs() {
     );
   }
 
+  // Composant réutilisable pour les cartes utilisateur
+  const UserCard = ({ user, type }) => (
+    <div
+      className="bg-slate-800 p-3 rounded-lg flex justify-between items-center hover:bg-slate-700 transition-colors cursor-pointer min-w-[280px] mx-2"
+      onClick={() => showDetailsModal(user._id, type, user.name || user.userId?.name)}
+    >
+      <div>
+        <p className="font-medium text-white">{user.name || user.userId?.name}</p>
+        <p className="text-sm text-slate-400">{user.email || user.userId?.email}</p>
+        <p className="text-sm text-slate-400">{user.phone || user.userId?.phone}</p>
+        {user.location?.address && (
+          <p className="text-xs text-orange-400 mt-1">{user.location.address}</p>
+        )}
+        {user.note && (
+          <p className="text-xs text-orange-400 mt-1">Note: {user.note}</p>
+        )}
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          showDeleteModal(user._id, type, user.name || user.userId?.name);
+        }}
+        className="p-2 text-red-500 hover:text-red-400 transition-colors"
+        title="Supprimer"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </div>
+  );
+
+  // Sections à afficher
+  const sections = [
+    { 
+      title: "Clients", 
+      data: clients, 
+      type: "client",
+      emptyMessage: "Aucun client trouvé"
+    },
+    { 
+      title: "Garagistes", 
+      data: garagistes, 
+      type: "garagiste",
+      emptyMessage: "Aucun garagiste trouvé"
+    },
+    { 
+      title: "Garages", 
+      data: garages, 
+      type: "garage",
+      emptyMessage: "Aucun garage trouvé"
+    }
+  ];
+
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-white mb-6">Gestion des Utilisateurs</h1>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Colonne Clients */}
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-          <h2 className="text-xl font-semibold text-orange-500 mb-4">Clients ({clients.length})</h2>
-          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-            {clients.length > 0 ? (
-              clients.map(client => (
-                <div
-                  key={client._id} 
-                  className="bg-slate-800 p-3 rounded-lg flex justify-between items-center hover:bg-slate-700 transition-colors cursor-pointer"
-                  onClick={() => showDetailsModal(client._id, 'client', client.name)}
-                >
-                  <div>
-                    <p className="font-medium text-white">{client.name}</p>
-                    <p className="text-sm text-slate-400">{client.email}</p>
-                    <p className="text-sm text-slate-400">{client.phone}</p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showDeleteModal(client._id, 'client', client.name);
-                    }}
-                    className="p-2 text-red-500 hover:text-red-400 transition-colors"
-                    title="Supprimer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              ))
-            ) : (
-              <p className="text-slate-400 text-center py-4">Aucun client trouvé</p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+        <h1 className="text-2xl font-bold text-white">Gestion des Utilisateurs</h1>
+        
+        {/* Barre de recherche */}
+        <div className="relative w-full md:w-64" ref={searchRef}>
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Rechercher un utilisateur..."
+              className="w-full pl-10 pr-8 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setSearchResults([]);
+                }}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                <FiX />
+              </button>
             )}
           </div>
-        </div>
-
-        {/* Colonne Garages */}
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-          <h2 className="text-xl font-semibold text-orange-500 mb-4">Garagistes ({garages.length})</h2>
-          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-            {garages.length > 0 ? (
-              garages.map(garage => (
+          
+          {/* Suggestions */}
+          {showSuggestions && searchResults.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+              {searchResults.map((result) => (
                 <div
-                  key={garage._id} 
-                  className="bg-slate-800 p-3 rounded-lg flex justify-between items-center hover:bg-slate-700 transition-colors cursor-pointer"
-                  onClick={() => showDetailsModal(garage._id, 'garage', garage.userId?.name || garage.name)}
+                  key={`${result._id}-${result.type}`}
+                  className="px-4 py-2 hover:bg-slate-700 cursor-pointer flex justify-between items-center"
+                  onClick={() => showDetailsModal(result._id, result.type, result.name)}
                 >
-                  <div>
-                    <p className="font-medium text-white">{garage.userId?.name || garage.name}</p>
-                    <p className="text-sm text-slate-400">{garage.userId?.email || garage.email}</p>
-                    <p className="text-sm text-slate-400">{garage.userId?.phone || garage.phone}</p>
-                    <p className="text-xs text-orange-400 mt-1">
-                      Note: {garage.note || 'Aucune'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showDeleteModal(garage._id, 'garage', garage.userId?.name || garage.name);
-                    }}
-                    className="p-2 text-red-500 hover:text-red-400 transition-colors"
-                    title="Supprimer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  <span className="text-white">{result.name}</span>
+                  <span className="text-xs text-orange-400 capitalize">
+                    {result.type === 'garagiste' ? 'garage' : result.type}
+                  </span>
                 </div>
-              ))
-            ) : (
-              <p className="text-slate-400 text-center py-4">Aucun garagiste trouvé</p>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+      
+      {/* Sections dynamiques */}
+      {sections.map((section, index) => (
+        <div key={index} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 mb-6">
+          <h2 className="text-xl font-semibold text-orange-500 mb-4">
+            {section.title} ({section.data.length})
+          </h2>
+          
+          <div className="relative">
+            {section.data.length > 0 ? (
+              <>
+                <button 
+                  onClick={() => handleScroll(index, 'left')}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-slate-700/80 hover:bg-slate-600 p-2 rounded-full"
+                  disabled={section.data.length <= 3}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                
+                <div 
+                  ref={el => scrollContainerRef.current[index] = el}
+                  className="flex overflow-x-auto space-x-3 py-2 scrollbar-hide"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {section.data.map(user => (
+                    <UserCard key={user._id} user={user} type={section.type} />
+                  ))}
+                </div>
+                
+                <button 
+                  onClick={() => handleScroll(index, 'right')}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-slate-700/80 hover:bg-slate-600 p-2 rounded-full"
+                  disabled={section.data.length <= 3}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <p className="text-slate-400 text-center py-4">{section.emptyMessage}</p>
+            )}
+          </div>
+        </div>
+      ))}
 
       {/* Modale commune pour détails et suppression */}
       {modal.show && (
@@ -249,7 +398,9 @@ export function Utilisateurs() {
                   <div>
                     <h3 className="text-lg font-bold text-red-500">Confirmer la suppression</h3>
                     <p className="text-sm text-slate-400 mt-1">
-                      Vous allez supprimer {modal.userType === 'client' ? 'le client' : 'le garagiste'} : <span className="font-medium text-white">{modal.name}</span>
+                      Vous allez supprimer {modal.userType === 'client' ? 'le client' : 
+                        modal.userType === 'garagiste' ? 'le garagiste' : 'le garage'} : 
+                      <span className="font-medium text-white"> {modal.name}</span>
                     </p>
                   </div>
                 </div>
@@ -273,7 +424,8 @@ export function Utilisateurs() {
               <>
                 <div className="flex justify-between items-start mb-6">
                   <h2 className="text-2xl font-bold text-white">
-                    Détails {modal.userType === 'client' ? 'du client' : 'du garagiste'}
+                    Détails {modal.userType === 'client' ? 'du client' : 
+                    modal.userType === 'garagiste' ? 'du garagiste' : 'du garage'}
                   </h2>
                   <button 
                     onClick={closeModal}
@@ -298,18 +450,19 @@ export function Utilisateurs() {
                         <p><span className="text-slate-400">Nom:</span> <span className="text-white">{userDetails.name || userDetails.userId?.name}</span></p>
                         <p><span className="text-slate-400">Email:</span> <span className="text-white">{userDetails.email || userDetails.userId?.email}</span></p>
                         <p><span className="text-slate-400">Téléphone:</span> <span className="text-white">{userDetails.phone || userDetails.userId?.phone}</span></p>
-                        {modal.userType === 'client' ? (
+                        {modal.userType !== 'garage' && (
                           <>
-                            <p><span className="text-slate-400">Role:</span> <span className="text-white">{userDetails.role}</span></p>
+                            <p><span className="text-slate-400">Role:</span> <span className="text-white capitalize">{userDetails.role}</span></p>
                             <p><span className="text-slate-400">Inscrit le:</span> <span className="text-white">
                               {new Date(userDetails.createdAt).toLocaleDateString()}
                             </span></p>
                           </>
-                        ) : (
-                          <>
-                            <p><span className="text-slate-400">Adresse:</span> <span className="text-white">{userDetails.address}</span></p>
-                            <p><span className="text-slate-400">Note moyenne:</span> <span className="text-white">{userDetails.note || 'Aucune'}</span></p>
-                          </>
+                        )}
+                        {(userDetails.location?.address || userDetails.address) && (
+                          <p><span className="text-slate-400">Adresse:</span> <span className="text-white">{userDetails.location?.address || userDetails.address}</span></p>
+                        )}
+                        {userDetails.note && (
+                          <p><span className="text-slate-400">Note moyenne:</span> <span className="text-white">{userDetails.note}</span></p>
                         )}
                       </div>
                     </div>

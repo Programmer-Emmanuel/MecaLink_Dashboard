@@ -120,7 +120,7 @@ export function DashboardAccueil() {
           title="Garages" 
           value={stats.garages?.total || 0} 
           icon="🏢"
-          link="/dashboard/garages"
+          link="/dashboard/utilisateurs"
           trend={{ value: stats.garages?.newThisMonth || 0, label: 'ce mois' }}
           description="Garages enregistrés"
         />

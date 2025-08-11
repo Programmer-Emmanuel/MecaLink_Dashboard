@@ -7,7 +7,6 @@ export function DashboardAccueil() {
     loading: true,
     error: null,
     users: {},
-    garages: {},
     serviceRequests: {},
     checklists: {}
   });
@@ -94,9 +93,10 @@ export function DashboardAccueil() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard 
           title="Total Comptes" 
-          value={stats.users?.clients + stats.users?.garageOwners || 0} 
+          value={(stats.users?.clients || 0) + (stats.users?.garages || 0) + (stats.users?.admins || 0)} 
           icon="👥"
           link="/dashboard/utilisateurs"
+          trend={{ value: stats.users?.newThisMonth || 0, label: 'ce mois' }}
           description="Utilisateurs enregistrés"
         />
 
@@ -110,19 +110,18 @@ export function DashboardAccueil() {
 
         <StatCard 
           title="Garagistes" 
-          value={stats.users?.garageOwners || 0} 
+          value={stats.users?.garages || 0} 
           icon="🔧"
           link="/dashboard/utilisateurs"
           description="Propriétaires de garage"
         />
 
         <StatCard 
-          title="Garages" 
-          value={stats.garages?.total || 0} 
-          icon="🏢"
+          title="Administrateurs" 
+          value={stats.users?.admins || 0} 
+          icon="👔"
           link="/dashboard/utilisateurs"
-          trend={{ value: stats.garages?.newThisMonth || 0, label: 'ce mois' }}
-          description="Garages enregistrés"
+          description="Administrateurs système"
         />
       </div>
 
@@ -161,22 +160,22 @@ export function DashboardAccueil() {
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg">
               <div>
-                <p className="text-sm text-slate-300">Garages actifs</p>
-                <p className="text-lg font-bold text-white">
-                  {stats.garages?.active || 0} <span className="text-sm text-slate-400">/ {stats.garages?.total || 0}</span>
-                </p>
-              </div>
-              <span className="text-orange-500">🏁</span>
-            </div>
-
-            <div className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg">
-              <div>
                 <p className="text-sm text-slate-300">Demandes acceptées</p>
                 <p className="text-lg font-bold text-white">
                   {stats.serviceRequests?.accepted || 0} <span className="text-sm text-slate-400">/ {stats.serviceRequests?.total || 0}</span>
                 </p>
               </div>
               <span className="text-green-500">✓</span>
+            </div>
+
+            <div className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg">
+              <div>
+                <p className="text-sm text-slate-300">Demandes terminées</p>
+                <p className="text-lg font-bold text-white">
+                  {stats.serviceRequests?.completed || 0} <span className="text-sm text-slate-400">/ {stats.serviceRequests?.total || 0}</span>
+                </p>
+              </div>
+              <span className="text-blue-500">✓</span>
             </div>
 
             <div className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg">

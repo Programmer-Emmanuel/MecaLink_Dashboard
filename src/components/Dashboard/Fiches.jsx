@@ -23,6 +23,46 @@ export function Fiches() {
   const { toPDF, targetRef } = usePDF({filename: 'fiche-predemarrage.pdf'});
   const modalRef = useRef(null);
 
+  // Traductions des clés et valeurs
+  const translations = {
+    keys: {
+      tires: 'Pneus',
+      wheelNuts: 'Écrous de roue',
+      body: 'Carrosserie',
+      spareTire: 'Roue de secours',
+      windshield: 'Pare-brise',
+      wipers: 'Essuie-glaces',
+      lights: 'Feux',
+      indicators: 'Clignotants',
+      oilLevel: 'Niveau d\'huile',
+      coolant: 'Liquide de refroidissement',
+      battery: 'Batterie',
+      belt: 'Courroie',
+      seatsBelts: 'Ceintures de sécurité',
+      brakes: 'Freins',
+      ac: 'Climatisation',
+      fourByFour: 'Transmission 4x4',
+      extinguisher: 'Extincteur',
+      firstAid: 'Trousse de secours',
+      triangle: 'Triangle',
+      jackTools: 'Cric et outils'
+    },
+    values: {
+      'Bon': 'Bon',
+      'Oui': 'Oui',
+      'Rayures': 'Rayures',
+      'À revoir': 'À revoir',
+      'Fissuré': 'Fissuré',
+      'OK': 'OK',
+      'Aucun': 'Aucun',
+      'Faible': 'Faible',
+      'Problème': 'Problème',
+      'Incomplète': 'Incomplète',
+      'Présent': 'Présent',
+      'Incomplets': 'Incomplets'
+    }
+  };
+
   useEffect(() => {
     const fetchChecklists = async () => {
       try {
@@ -47,7 +87,6 @@ export function Fiches() {
     fetchChecklists();
   }, [pagination.page, pagination.limit]);
 
-  // Gestion de la fermeture lors du clic en dehors
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modal.show && modalRef.current && !modalRef.current.contains(event.target)) {
@@ -66,6 +105,14 @@ export function Fiches() {
       setDetailsLoading(true);
       const response = await api.get(`/admin/checklists/${checklistId}`);
       
+      const translateData = (data) => {
+        return Object.entries(data || {}).reduce((acc, [key, value]) => {
+          const translatedKey = translations.keys[key] || key;
+          const translatedValue = translations.values[value] || value;
+          return { ...acc, [translatedKey]: translatedValue };
+        }, {});
+      };
+
       const formattedDetails = {
         ...response.data.data,
         user: response.data.data.user || {
@@ -73,10 +120,12 @@ export function Fiches() {
           email: 'Non renseigné',
           phone: 'Non renseigné'
         },
-        exteriorChecks: response.data.data.exteriorChecks || {},
-        mechanicalChecks: response.data.data.mechanicalChecks || {},
-        interiorChecks: response.data.data.interiorChecks || {},
-        observations: response.data.data.observations || 'Aucune observation'
+        exteriorChecks: translateData(response.data.data.exteriorChecks),
+        mechanicalChecks: translateData(response.data.data.mechanicalChecks),
+        interiorChecks: translateData(response.data.data.interiorChecks),
+        observations: response.data.data.observations || 'Aucune observation',
+        date: new Date(response.data.data.date).toLocaleDateString('fr-FR'),
+        time: response.data.data.time
       };
 
       setChecklistDetails(formattedDetails);
@@ -172,7 +221,7 @@ export function Fiches() {
                       <div>
                         <p className="text-sm text-slate-400">Date</p>
                         <p className="text-sm text-white">
-                          {checklist.date ? new Date(checklist.date).toLocaleDateString() : 'Non renseigné'}
+                          {checklist.date ? new Date(checklist.date).toLocaleDateString('fr-FR') : 'Non renseigné'}
                         </p>
                       </div>
                       <div>
@@ -234,169 +283,156 @@ export function Fiches() {
         )}
       </div>
 
-        {modal.show && (
+      {modal.show && (
         <div 
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={closeModal}
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
         >
-            <div 
+          <div 
             ref={modalRef}
             className="bg-white rounded-lg border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
-            >
-            {/* En-tête fixe */}
+          >
             <div className="sticky top-0 bg-white z-10 p-4 border-b border-slate-200 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-slate-900">
+              <h2 className="text-xl font-bold text-slate-900">
                 Fiche de pré-démarrage
-                </h2>
-                <div className="flex gap-2">
+              </h2>
+              <div className="flex gap-2">
                 <button
-                    onClick={downloadPDF}
-                    className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg flex items-center gap-1 text-sm"
-                    title="Télécharger en PDF"
+                  onClick={downloadPDF}
+                  className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg flex items-center gap-1 text-sm"
+                  title="Télécharger en PDF"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>PDF</span>
+                  </svg>
+                  <span>PDF</span>
                 </button>
                 <button 
-                    onClick={closeModal}
-                    className="p-1 text-slate-900 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors"
-                    aria-label="Fermer la modale"
+                  onClick={closeModal}
+                  className="p-1 text-slate-900 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors"
+                  aria-label="Fermer la modale"
                 >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                  </svg>
                 </button>
-                </div>
+              </div>
             </div>
 
-            {/* Corps de la modale */}
             <div className="overflow-y-auto flex-1">
-                {detailsLoading ? (
+              {detailsLoading ? (
                 <div className="flex justify-center items-center h-64">
-                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-500"></div>
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-500"></div>
                 </div>
-                ) : checklistDetails ? (
+              ) : checklistDetails ? (
                 <div ref={targetRef} className="p-5">
-                    {/* Conteneur PDF compact */}
-                    <div className="space-y-5 text-sm">
-                    {/* En-tête */}
+                  <div className="space-y-5 text-sm">
                     <div className="text-center mb-7">
-                        <h1 className="text-xl font-bold text-slate-900 mb-1">Fiche de Pré-Démarrage</h1>
-                        <p className="text-slate-900">
-                        {new Date(checklistDetails.date).toLocaleDateString('fr-FR')} à {checklistDetails.time}
-                        </p>
+                      <h1 className="text-xl font-bold text-slate-900 mb-1">Fiche de Pré-Démarrage</h1>
+                      <p className="text-slate-900">
+                        {checklistDetails.date} à {checklistDetails.time}
+                      </p>
                     </div>
 
-                    {/* Informations Générales */}
                     <div className="grid grid-cols-2 gap-5 mb-5 p-3 bg-slate-50 rounded-lg">
-                        <div>
+                      <div>
                         <h3 className="font-semibold text-orange-500 mb-2">Utilisateur</h3>
                         <p className='text-slate-800'><span className="text-slate-900 font-medium">Nom:</span> {checklistDetails.user.name}</p>
                         <p className='text-slate-800'><span className="text-slate-900 font-medium">Tél:</span> {checklistDetails.user.phone}</p>
-                        </div>
-                        <div>
+                      </div>
+                      <div>
                         <h3 className="font-semibold text-orange-500 mb-2">Véhicule</h3>
-                        <p className='text-slate-800'><span className="text-slate-900 font-medium">Immat:</span> {checklistDetails.registration}</p>
-                        <p className='text-slate-800'><span className="text-slate-900 font-medium">Km:</span> {checklistDetails.mileage} km</p>
-                        </div>
+                        <p className='text-slate-800'><span className="text-slate-900 font-medium">Immatriculation:</span> {checklistDetails.registration}</p>
+                        <p className='text-slate-800'><span className="text-slate-900 font-medium">Kilométrage:</span> {checklistDetails.mileage} km</p>
+                      </div>
                     </div>
 
-                    {/* Vérifications - Format compact */}
                     <div className="space-y-5">
-                        {/* Extérieures */}
-                        <div className="p-3 bg-slate-50 rounded-lg">
+                      <div className="p-3 bg-slate-50 rounded-lg">
                         <h3 className="font-semibold text-slate-900 mb-3 border-b pb-2">Vérifications Extérieures</h3>
                         <div className="grid grid-cols-2 gap-3">
-                            {Object.entries(checklistDetails.exteriorChecks).map(([key, value]) => (
+                          {Object.entries(checklistDetails.exteriorChecks).map(([key, value]) => (
                             <div key={key} className="flex items-center">
-                                <div className={`w-2 h-2 rounded-full mr-2 ${
-                                value === 'OK' || value === 'Oui' || value === 'Bon' ? 'bg-blue-900' :
+                              <div className={`w-2 h-2 rounded-full mr-2 ${
+                                value === 'Bon' || value === 'Oui' || value === 'OK' ? 'bg-green-500' :
                                 value === 'À revoir' || value === 'Faible' ? 'bg-yellow-500' :
                                 'bg-red-500'
-                                }`}></div>
-                                <span className="text-slate-900 font-medium">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                                <span className="ml-2 text-slate-900">{value}</span>
+                              }`}></div>
+                              <span className="text-slate-900 font-medium">{key}:</span>
+                              <span className="ml-2 text-slate-900">{value}</span>
                             </div>
-                            ))}
+                          ))}
                         </div>
-                        </div>
+                      </div>
 
-                        {/* Mécaniques */}
-                        <div className="p-3 bg-slate-50 rounded-lg">
+                      <div className="p-3 bg-slate-50 rounded-lg">
                         <h3 className="font-semibold text-slate-900 mb-3 border-b pb-2">Vérifications Mécaniques</h3>
                         <div className="grid grid-cols-2 gap-3">
-                            {Object.entries(checklistDetails.mechanicalChecks).map(([key, value]) => (
+                          {Object.entries(checklistDetails.mechanicalChecks).map(([key, value]) => (
                             <div key={key} className="flex items-center">
-                                <div className={`w-2 h-2 rounded-full mr-2 ${
-                                value === 'OK' ? 'bg-blue-900' :
+                              <div className={`w-2 h-2 rounded-full mr-2 ${
+                                value === 'OK' ? 'bg-green-500' :
                                 value === 'Faible' ? 'bg-yellow-500' :
                                 'bg-red-500'
-                                }`}></div>
-                                <span className="text-slate-900 font-medium">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                                <span className="ml-2 text-slate-900">{value}</span>
+                              }`}></div>
+                              <span className="text-slate-900 font-medium">{key}:</span>
+                              <span className="ml-2 text-slate-900">{value}</span>
                             </div>
-                            ))}
+                          ))}
                         </div>
-                        </div>
+                      </div>
 
-                        {/* Intérieures */}
-                        <div className="p-3 bg-slate-50 rounded-lg">
+                      <div className="p-3 bg-slate-50 rounded-lg">
                         <h3 className="font-semibold text-slate-900 mb-3 border-b pb-2">Vérifications Intérieures</h3>
                         <div className="grid grid-cols-2 gap-3">
-                            {Object.entries(checklistDetails.interiorChecks).map(([key, value]) => (
+                          {Object.entries(checklistDetails.interiorChecks).map(([key, value]) => (
                             <div key={key} className="flex items-center">
-                                <div className={`w-2 h-2 rounded-full mr-2 ${
-                                value === 'OK' || value === 'Présent' ? 'bg-blue-900' :
-                                value === 'Incomplets' || value === 'Incomplète' ? 'bg-yellow-500' :
+                              <div className={`w-2 h-2 rounded-full mr-2 ${
+                                value === 'OK' || value === 'Présent' ? 'bg-green-500' :
+                                value === 'Incomplet' || value === 'Incomplète' ? 'bg-yellow-500' :
                                 'bg-red-500'
-                                }`}></div>
-                                <span className="text-slate-900 font-medium">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                                <span className="ml-2 text-slate-900">{value}</span>
+                              }`}></div>
+                              <span className="text-slate-900 font-medium">{key}:</span>
+                              <span className="ml-2 text-slate-900">{value}</span>
                             </div>
-                            ))}
+                          ))}
                         </div>
-                        </div>
+                      </div>
                     </div>
 
-                    {/* Observations */}
-                    {checklistDetails.observations && (
-                        <div className="p-3 bg-slate-50 rounded-lg">
-                        <h3 className="font-semibold text-slate-900 mb-2 border-b pb-2">Observations</h3>
-                        <p className="text-slate-900 whitespace-pre-line">{checklistDetails.observations}</p>
-                        </div>
-                    )}
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <h3 className="font-semibold text-slate-900 mb-2 border-b pb-2">Observations</h3>
+                      <p className="text-slate-900 whitespace-pre-line">{checklistDetails.observations}</p>
+                    </div>
 
-                    {/* Signatures */}
                     <div className="flex justify-between mt-6 pt-4">
-                        <div className="w-1/2 pr-4">
+                      <div className="w-1/2 pr-4">
                         <p className="text-slate-900 mb-2">Signature utilisateur</p>
                         <div className="h-10 border-b border-slate-300"></div>
-                        </div>
-                        <div className="w-1/2 pl-4">
+                      </div>
+                      <div className="w-1/2 pl-4">
                         <p className="text-slate-900 mb-2">Signature responsable</p>
                         <div className="h-10 border-b border-slate-300"></div>
-                        </div>
+                      </div>
                     </div>
-                    </div>
+                  </div>
                 </div>
-                ) : (
+              ) : (
                 <div className="text-center p-5">
-                    <p className="text-red-500 text-sm">Impossible de charger les détails</p>
-                    <button
+                  <p className="text-red-500 text-sm">Impossible de charger les détails</p>
+                  <button
                     onClick={closeModal}
                     className="mt-3 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded text-sm"
-                    >
+                  >
                     Fermer
-                    </button>
+                  </button>
                 </div>
-                )}
+              )}
             </div>
-            </div>
+          </div>
         </div>
-        )}
+      )}
     </div>
   );
 }

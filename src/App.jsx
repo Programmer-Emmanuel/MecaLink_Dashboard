@@ -8,6 +8,7 @@ import { Fiches } from "./components/Dashboard/Fiches";
 import { Depannages } from "./components/Dashboard/Depannages";
 import { Statistiques } from "./components/Dashboard/Statistiques";
 import { Avertissements } from "./components/Dashboard/Avertissements";
+import { Notifications } from "./components/Dashboard/Notifications";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/dashboard/depannages" element={<Dashboard contenu={<Depannages />} />} />
         <Route path="/dashboard/statistiques" element={<Dashboard contenu={<Statistiques />} />} />
         <Route path="/dashboard/avertissements" element={<Dashboard contenu={<Avertissements />} />} />
+        <Route path="/dashboard/notifications" element={<Dashboard contenu={<Notifications />} />} />
       </Routes>
     </Router>
   );

@@ -103,7 +103,7 @@ export function Dashboard({ contenu }) {
                                 <span>Publicités</span>
                             </Link>
                         </li>
-                        {/* <li>
+                        <li>
                             <Link 
                                 to="/dashboard/notifications" 
                                 className={`flex items-center gap-3 font-medium ${isActive('/dashboard/notifications')}`}
@@ -113,7 +113,7 @@ export function Dashboard({ contenu }) {
                                 </svg>
                                 <span>Notifications</span>
                             </Link>
-                        </li> */}
+                        </li>
                         <li>
                             <Link 
                                 to="/dashboard/statistiques" 

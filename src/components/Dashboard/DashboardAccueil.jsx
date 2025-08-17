@@ -93,7 +93,7 @@ export function DashboardAccueil() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard 
           title="Total Comptes" 
-          value={(stats.users?.clients || 0) + (stats.users?.garages || 0) + (stats.users?.admins || 0)} 
+          value={(stats.users?.clients || 0) + (stats.users?.garages || 0)} 
           icon="👥"
           link="/dashboard/utilisateurs"
           trend={{ value: stats.users?.newThisMonth || 0, label: 'ce mois' }}
@@ -109,11 +109,11 @@ export function DashboardAccueil() {
         />
 
         <StatCard 
-          title="Garagistes" 
+          title="Garages" 
           value={stats.users?.garages || 0} 
           icon="🔧"
           link="/dashboard/utilisateurs"
-          description="Propriétaires de garage"
+          description="Garages particuliers"
         />
 
         <StatCard 

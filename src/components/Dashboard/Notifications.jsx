@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from "../../constants/api/api";
-import { FiSend, FiUsers, FiUser, FiTool, FiSmartphone, FiX, FiList, FiCheck, FiArrowLeft } from 'react-icons/fi';
+import { FiSend, FiUsers, FiUser, FiTool, FiSmartphone, FiX, FiList, FiCheck, FiArrowLeft, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 export function Notifications() {
   const [activeTab, setActiveTab] = useState('all');
@@ -11,6 +11,12 @@ export function Notifications() {
   const [users, setUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1
+  });
   const [formData, setFormData] = useState({
     title: '',
     body: '',
@@ -37,13 +43,19 @@ export function Notifications() {
     }
   }, [response]);
 
-  const fetchUsersWithTokens = async () => {
+  const fetchUsersWithTokens = async (page = 1, limit = 10) => {
     setIsLoadingUsers(true);
     try {
-      const { data } = await api.get('/admin/users');
+      const { data } = await api.get(`/admin/users?page=${page}&limit=${limit}`);
       // Filtrer uniquement les utilisateurs avec un deviceToken
       const usersWithTokens = data.data.users.filter(user => user.deviceToken);
       setUsers(usersWithTokens);
+      setPagination({
+        page: data.data.page,
+        limit: data.data.limit,
+        total: data.data.total,
+        totalPages: data.data.totalPages
+      });
     } catch (error) {
       console.error("Erreur lors de la récupération des utilisateurs:", error);
       setResponse({
@@ -76,13 +88,19 @@ export function Notifications() {
   };
 
   const handleUserSelection = (userId) => {
-    setSelectedUsers(prev => {
-      if (prev.includes(userId)) {
-        return prev.filter(id => id !== userId);
-      } else {
-        return [...prev, userId];
-      }
-    });
+    if (activeTab === 'device') {
+      // Pour l'onglet Appareil, on ne peut sélectionner qu'un seul utilisateur
+      setSelectedUsers([userId]);
+    } else {
+      // Pour l'onglet Utilisateurs ciblés, on peut sélectionner plusieurs utilisateurs
+      setSelectedUsers(prev => {
+        if (prev.includes(userId)) {
+          return prev.filter(id => id !== userId);
+        } else {
+          return [...prev, userId];
+        }
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -96,7 +114,6 @@ export function Notifications() {
       const basePayload = {
         title: formData.title,
         body: formData.body,
-        data: formData.data
       };
 
       switch (activeTab) {
@@ -117,12 +134,6 @@ export function Notifications() {
           payload = basePayload;
           break;
         case 'device':
-          endpoint = '/admin/notifications/send-to-device';
-          payload = {
-            ...basePayload,
-            deviceToken: formData.deviceToken
-          };
-          break;
         case 'users':
           endpoint = '/admin/notifications/send-to-device-tokens';
           const deviceTokens = users
@@ -143,6 +154,8 @@ export function Notifications() {
         ...data,
         message: activeTab === 'users' 
           ? `Notification envoyée à ${selectedUsers.length} utilisateurs` 
+          : activeTab === 'device'
+          ? `Notification envoyée à 1 appareil`
           : data.message
       });
       resetForm();
@@ -162,7 +175,7 @@ export function Notifications() {
     setResponse(null);
     resetForm();
     
-    if (tab === 'users') {
+    if (tab === 'users' || tab === 'device') {
       setIsUserSelectionModalOpen(true);
       await fetchUsersWithTokens();
     } else {
@@ -190,6 +203,12 @@ export function Notifications() {
     return 'md:grid-cols-2';
   };
 
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchUsersWithTokens(newPage, pagination.limit);
+    }
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold text-white mb-8">Gestion des notifications</h1>
@@ -215,12 +234,12 @@ export function Notifications() {
       </div>
 
       {/* Modal de sélection des utilisateurs */}
-      {isUserSelectionModalOpen && (
+      {(isUserSelectionModalOpen && (activeTab === 'users' || activeTab === 'device')) && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-xl w-full max-w-2xl border border-slate-700/50">
             <div className="flex justify-between items-center p-4 border-b border-slate-700/50">
               <h2 className="text-xl font-semibold text-white w-full">
-                Sélectionner des utilisateurs
+                {activeTab === 'device' ? 'Sélectionner un appareil' : 'Sélectionner des utilisateurs'}
               </h2>
               <button 
                 onClick={() => {
@@ -255,6 +274,9 @@ export function Notifications() {
                         <div>
                           <h3 className="font-medium text-white">{user.name}</h3>
                           <p className="text-sm text-slate-400">{user.email}</p>
+                          <p className="text-xs text-slate-500 mt-1 truncate" title={user.deviceToken}>
+                            {user.deviceToken}
+                          </p>
                         </div>
                         {selectedUsers.includes(user._id) && (
                           <div className="bg-orange-500 p-1 rounded-full">
@@ -268,24 +290,50 @@ export function Notifications() {
               )}
             </div>
 
-            <div className="p-4 border-t border-slate-700/50 flex justify-between">
-              <button
-                onClick={() => {
-                  setIsUserSelectionModalOpen(false);
-                  resetForm();
-                }}
-                className="px-4 py-2 bg-slate-700/50 text-white rounded-lg hover:bg-slate-700 transition-colors"
-              >
-                Annuler
-              </button>
-              <div className="flex items-center space-x-4">
-                <span className="text-slate-400">
-                  {selectedUsers.length} utilisateur(s) sélectionné(s)
+            <div className="p-4 border-t border-slate-700/50 flex flex-col sm:flex-row justify-between items-center">
+              <div className="flex items-center mb-4 sm:mb-0">
+                <button
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                  disabled={pagination.page === 1}
+                  className="p-2 rounded-lg bg-slate-700/50 disabled:opacity-50"
+                >
+                  <FiChevronLeft size={18} />
+                </button>
+                <span className="mx-4 text-slate-400">
+                  Page {pagination.page} sur {pagination.totalPages}
                 </span>
                 <button
-                  onClick={proceedToNotificationForm}
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                  disabled={pagination.page === pagination.totalPages}
+                  className="p-2 rounded-lg bg-slate-700/50 disabled:opacity-50"
+                >
+                  <FiChevronRight size={18} />
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <span className="text-slate-400">
+                  {selectedUsers.length} {activeTab === 'device' ? 'appareil' : 'utilisateur(s)'} sélectionné(s)
+                </span>
+                <button
+                  onClick={() => {
+                    if (activeTab === 'device') {
+                      // Pour l'onglet Appareil, on utilise directement le deviceToken de l'utilisateur sélectionné
+                      const selectedUser = users.find(user => user._id === selectedUsers[0]);
+                      if (selectedUser) {
+                        setFormData(prev => ({
+                          ...prev,
+                          deviceToken: selectedUser.deviceToken
+                        }));
+                        setIsUserSelectionModalOpen(false);
+                        setIsModalOpen(true);
+                      }
+                    } else {
+                      proceedToNotificationForm();
+                    }
+                  }}
                   className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center"
-                  disabled={isLoadingUsers}
+                  disabled={isLoadingUsers || selectedUsers.length === 0}
                 >
                   <FiSend className="mr-2" />
                   Continuer
@@ -303,7 +351,7 @@ export function Notifications() {
             <div className="flex justify-between items-center p-4 border-b border-slate-700/50">
               <button
                 onClick={() => {
-                  if (activeTab === 'users') {
+                  if (activeTab === 'users' || activeTab === 'device') {
                     setIsModalOpen(false);
                     setIsUserSelectionModalOpen(true);
                   } else {
@@ -331,10 +379,12 @@ export function Notifications() {
 
             <form onSubmit={handleSubmit} className="p-4">
               <div className="space-y-4">
-                {activeTab === 'users' && (
+                {(activeTab === 'users' || activeTab === 'device') && (
                   <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-700/50">
                     <p className="text-sm text-slate-400">
-                      Notification sera envoyée à <span className="text-orange-500 font-medium">{selectedUsers.length}</span> utilisateur(s) sélectionné(s)
+                      Notification sera envoyée à <span className="text-orange-500 font-medium">
+                        {activeTab === 'device' ? '1 appareil' : `${selectedUsers.length} utilisateur(s)`}
+                      </span>
                     </p>
                   </div>
                 )}
@@ -362,20 +412,6 @@ export function Notifications() {
                     required
                   />
                 </div>
-
-                {activeTab === 'device' && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Token de l'appareil *</label>
-                    <input
-                      type="text"
-                      name="deviceToken"
-                      value={formData.deviceToken}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-700/50 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-orange-500 focus:ring-orange-500"
-                      required
-                    />
-                  </div>
-                )}
 
                 {activeTab === 'clients' && (
                   <div className="grid grid-cols-2 gap-4">
@@ -420,7 +456,7 @@ export function Notifications() {
                   type="button"
                   onClick={() => {
                     setIsModalOpen(false);
-                    if (activeTab === 'users') {
+                    if (activeTab === 'users' || activeTab === 'device') {
                       setIsUserSelectionModalOpen(true);
                     } else {
                       resetForm();

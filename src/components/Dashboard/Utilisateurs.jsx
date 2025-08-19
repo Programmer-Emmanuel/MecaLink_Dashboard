@@ -409,18 +409,18 @@ export function Utilisateurs() {
       paginationKey: "clients"
     },
     { 
-      title: "Garagistes", 
-      data: garagistes, 
-      type: "garagiste",
-      emptyMessage: "Aucun garagiste trouvé",
-      paginationKey: "garagistes"
-    },
-    { 
       title: "Garages", 
       data: garages, 
       type: "garage",
       emptyMessage: "Aucun garage trouvé",
       paginationKey: "garages"
+    },
+    { 
+      title: "Garagistes", 
+      data: garagistes, 
+      type: "garagiste",
+      emptyMessage: "Aucun garagiste trouvé",
+      paginationKey: "garagistes"
     }
   ];
 

@@ -4,7 +4,6 @@ import { EyeOutlined, EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-de
 import api from "../../constants/api/api";
 import secureStorage from 'react-secure-storage';
 
-// Configuration du thème sombre pour Ant Design
 const darkTheme = {
   token: {
     colorBgContainer: '#1e293b',
@@ -62,11 +61,9 @@ export function Avertissements() {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [currentAd, setCurrentAd] = useState(null);
   const [form] = Form.useForm();
 
-  // États pour la création d'une nouvelle publicité
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [file, setFile] = useState(null);
@@ -111,9 +108,22 @@ export function Avertissements() {
     setEditModalVisible(true);
   };
 
-  const showDeleteModal = (ad) => {
-    setCurrentAd(ad);
-    setDeleteModalVisible(true);
+  // Fonction de suppression corrigée
+  const handleDelete = async (adId) => {
+    try {
+      const token = secureStorage.getItem('token');
+      await api.delete(`/advertisements/${adId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      setAdvertisements(advertisements.filter(ad => ad._id !== adId));
+      message.success("Publicité supprimée avec succès");
+    } catch (err) {
+      console.error("Erreur:", err);
+      message.error("Erreur lors de la suppression de la publicité");
+    }
   };
 
   const handleEdit = async () => {
@@ -139,24 +149,6 @@ export function Avertissements() {
     }
   };
 
-  const handleDelete = async () => {
-    try {
-      const token = secureStorage.getItem('token');
-      await api.delete(`/advertisements/${currentAd._id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      setAdvertisements(advertisements.filter(ad => ad._id !== currentAd._id));
-      message.success("Publicité supprimée avec succès");
-      setDeleteModalVisible(false);
-    } catch (err) {
-      console.error("Erreur:", err);
-      message.error("Erreur lors de la suppression de la publicité");
-    }
-  };
-
   const handleCreate = async () => {
     try {
       setCreateLoading(true);
@@ -165,12 +157,10 @@ export function Avertissements() {
       const values = await form.validateFields();
       const adData = new FormData();
       
-      // Ajouter les champs texte
       adData.append('title', values.title);
       adData.append('description', values.description);
       adData.append('isActive', values.isActive);
       
-      // Ajouter le fichier s'il existe
       if (file) {
         adData.append('image', file);
       }
@@ -249,7 +239,7 @@ export function Avertissements() {
           />
           <Popconfirm
             title="Êtes-vous sûr de vouloir supprimer cette publicité ?"
-            onConfirm={() => handleDelete(record._id)}
+            onConfirm={() => handleDelete(record._id)} // Passage direct de l'ID
             okText="Oui"
             cancelText="Non"
             overlayClassName="dark-popconfirm"

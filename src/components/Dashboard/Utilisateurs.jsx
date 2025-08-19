@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from "../../constants/api/api";
-import { FiSearch, FiX } from 'react-icons/fi';
+import { FiSearch, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 export function Utilisateurs() {
   const [clients, setClients] = useState([]);
   const [garagistes, setGaragistes] = useState([]);
   const [garages, setGarages] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
@@ -23,34 +25,98 @@ export function Utilisateurs() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef(null);
 
+  // États pour la pagination
+  const [pagination, setPagination] = useState({
+    clients: { current: 1, pageSize: 10, total: 0 },
+    garagistes: { current: 1, pageSize: 10, total: 0 },
+    garages: { current: 1, pageSize: 10, total: 0 }
+  });
+
   const commentsCarouselRef = useRef(null);
   const [currentCommentIndex, setCurrentCommentIndex] = useState(0);
   const scrollContainerRef = useRef([]);
 
-  // Fetch all users data
+  // Fetch all users data avec pagination
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        setLoading(true);
+        // Ne montrer le loading que lors du premier chargement
+        if (initialLoad) {
+          setLoading(true);
+        }
         
-        const clientsRes = await api.get('/admin/users?role=client');
+        // Récupérer les clients avec pagination
+        const clientsRes = await api.get(`/admin/users?role=client&page=${pagination.clients.current}&limit=${pagination.clients.pageSize}`);
         setClients(clientsRes.data.data.users || []);
+        setPagination(prev => ({
+          ...prev,
+          clients: { ...prev.clients, total: clientsRes.data.data.total || 0 }
+        }));
         
-        const garagistesRes = await api.get('/admin/users?role=garage');
+        // Récupérer les garagistes avec pagination
+        const garagistesRes = await api.get(`/admin/users?role=garage&page=${pagination.garagistes.current}&limit=${pagination.garagistes.pageSize}`);
         setGaragistes(garagistesRes.data.data.users || []);
+        setPagination(prev => ({
+          ...prev,
+          garagistes: { ...prev.garagistes, total: garagistesRes.data.data.total || 0 }
+        }));
         
-        const garagesRes = await api.get('/admin/garages');
+        // Récupérer les garages avec pagination
+        const garagesRes = await api.get(`/admin/garages?page=${pagination.garages.current}&limit=${pagination.garages.pageSize}`);
         setGarages(garagesRes.data.data.garages || []);
+        setPagination(prev => ({
+          ...prev,
+          garages: { ...prev.garages, total: garagesRes.data.data.total || 0 }
+        }));
         
       } catch (err) {
         setError("Erreur lors du chargement des utilisateurs");
         console.error(err);
       } finally {
-        setLoading(false);
+        if (initialLoad) {
+          setLoading(false);
+          setInitialLoad(false);
+        }
       }
     };
 
     fetchUsers();
+  }, [pagination.clients.current, pagination.garagistes.current, pagination.garages.current, initialLoad]);
+
+  // Fetch all users for search (without pagination)
+  useEffect(() => {
+    const fetchAllUsersForSearch = async () => {
+      try {
+        // Récupérer tous les clients
+        const clientsRes = await api.get('/admin/users?role=client&limit=1000');
+        const allClients = clientsRes.data.data.users || [];
+        
+        // Récupérer tous les garagistes
+        const garagistesRes = await api.get('/admin/users?role=garage&limit=1000');
+        const allGaragistes = garagistesRes.data.data.users || [];
+        
+        // Récupérer tous les garages
+        const garagesRes = await api.get('/admin/garages?limit=1000');
+        const allGarages = garagesRes.data.data.garages || [];
+        
+        // Combiner tous les utilisateurs pour la recherche
+        const combinedUsers = [
+          ...allClients.map(user => ({ ...user, type: 'client' })),
+          ...allGaragistes.map(user => ({ ...user, type: 'garagiste' })),
+          ...allGarages.map(garage => ({ 
+            ...garage, 
+            name: garage.userId?.name || garage.name,
+            type: 'garage'
+          }))
+        ];
+        
+        setAllUsers(combinedUsers);
+      } catch (err) {
+        console.error("Erreur lors du chargement de tous les utilisateurs pour la recherche:", err);
+      }
+    };
+
+    fetchAllUsersForSearch();
   }, []);
 
   // Handle click outside search to close suggestions
@@ -73,22 +139,12 @@ export function Utilisateurs() {
       return;
     }
 
-    const allUsers = [
-      ...clients.map(user => ({ ...user, type: 'client' })),
-      ...garagistes.map(user => ({ ...user, type: 'garagiste' })),
-      ...garages.map(garage => ({ 
-        ...garage, 
-        name: garage.userId?.name || garage.name,
-        type: 'garage'
-      }))
-    ];
-
     const results = allUsers.filter(user => 
       user.name.toLowerCase().includes(term.toLowerCase())
-    ).slice(0, 3); // Limit to 3 suggestions
+    );
 
     setSearchResults(results);
-  }, [clients, garagistes, garages]);
+  }, [allUsers]);
 
   // Debounce search input
   useEffect(() => {
@@ -119,6 +175,21 @@ export function Utilisateurs() {
       console.error(err);
     } finally {
       setDetailsLoading(false);
+    }
+  };
+
+  // Fonction pour changer de page sans recharger la page
+  const handlePageChange = (section, page) => {
+    // Mettre à jour seulement la pagination sans recharger les données
+    setPagination(prev => ({
+      ...prev,
+      [section]: { ...prev[section], current: page }
+    }));
+    
+    // Faire défiler vers le haut de la section
+    const sectionElement = document.getElementById(section);
+    if (sectionElement) {
+      sectionElement.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -261,25 +332,95 @@ export function Utilisateurs() {
     </div>
   );
 
+  // Composant de pagination
+  const Pagination = ({ section, data, paginationData }) => {
+    const totalPages = Math.ceil(paginationData.total / paginationData.pageSize);
+    
+    if (totalPages <= 1) return null;
+    
+    return (
+      <div className="flex justify-center items-center mt-4 space-x-2">
+        <button
+          onClick={() => handlePageChange(section, paginationData.current - 1)}
+          disabled={paginationData.current === 1}
+          className={`p-2 rounded-md ${paginationData.current === 1 ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+        >
+          <FiChevronLeft className="w-4 h-4" />
+        </button>
+        
+        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          let pageNum;
+          if (totalPages <= 5) {
+            pageNum = i + 1;
+          } else if (paginationData.current <= 3) {
+            pageNum = i + 1;
+          } else if (paginationData.current >= totalPages - 2) {
+            pageNum = totalPages - 4 + i;
+          } else {
+            pageNum = paginationData.current - 2 + i;
+          }
+          
+          return (
+            <button
+              key={pageNum}
+              onClick={() => handlePageChange(section, pageNum)}
+              className={`px-3 py-1 rounded-md ${paginationData.current === pageNum ? 'bg-orange-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+            >
+              {pageNum}
+            </button>
+          );
+        })}
+        
+        {totalPages > 5 && paginationData.current < totalPages - 2 && (
+          <span className="px-2 text-slate-400">...</span>
+        )}
+        
+        {totalPages > 5 && paginationData.current < totalPages - 2 && (
+          <button
+            onClick={() => handlePageChange(section, totalPages)}
+            className={`px-3 py-1 rounded-md ${paginationData.current === totalPages ? 'bg-orange-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+            >
+            {totalPages}
+          </button>
+        )}
+        
+        <button
+          onClick={() => handlePageChange(section, paginationData.current + 1)}
+          disabled={paginationData.current === totalPages}
+          className={`p-2 rounded-md ${paginationData.current === totalPages ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+        >
+          <FiChevronRight className="w-4 h-4" />
+        </button>
+        
+        <span className="text-sm text-slate-400 ml-2">
+          {paginationData.total} éléments au total
+        </span>
+      </div>
+    );
+  };
+
   // Sections à afficher
   const sections = [
     { 
       title: "Clients", 
       data: clients, 
       type: "client",
-      emptyMessage: "Aucun client trouvé"
+      emptyMessage: "Aucun client trouvé",
+      paginationKey: "clients"
     },
     { 
       title: "Garagistes", 
       data: garagistes, 
       type: "garagiste",
-      emptyMessage: "Aucun garagiste trouvé"
+      emptyMessage: "Aucun garagiste trouvé",
+      paginationKey: "garagistes"
     },
     { 
       title: "Garages", 
       data: garages, 
       type: "garage",
-      emptyMessage: "Aucun garage trouvé"
+      emptyMessage: "Aucun garage trouvé",
+      paginationKey: "garages"
     }
   ];
 
@@ -289,7 +430,7 @@ export function Utilisateurs() {
         <h1 className="text-2xl font-bold text-white">Gestion des Utilisateurs</h1>
         
         {/* Barre de recherche */}
-        <div className="relative w-full md:w-64" ref={searchRef}>
+        <div className="relative w-full md:w-96" ref={searchRef}>
           <div className="relative">
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
             <input
@@ -316,16 +457,24 @@ export function Utilisateurs() {
             )}
           </div>
           
-          {/* Suggestions */}
+          {/* Suggestions avec tous les résultats */}
           {showSuggestions && searchResults.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+            <div className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-80 overflow-y-auto">
+              <div className="px-3 py-2 text-xs text-slate-400 border-b border-slate-700">
+                {searchResults.length} résultat(s) trouvé(s)
+              </div>
               {searchResults.map((result) => (
                 <div
                   key={`${result._id}-${result.type}`}
                   className="px-4 py-2 hover:bg-slate-700 cursor-pointer flex justify-between items-center"
                   onClick={() => showDetailsModal(result._id, result.type, result.name)}
                 >
-                  <span className="text-white">{result.name}</span>
+                  <div className="flex flex-col">
+                    <span className="text-white">{result.name}</span>
+                    <span className="text-xs text-slate-400">
+                      {result.email || result.userId?.email}
+                    </span>
+                  </div>
                   <span className="text-xs text-orange-400 capitalize">
                     {result.type === 'garagiste' ? 'garagiste' : result.type}
                   </span>
@@ -338,9 +487,9 @@ export function Utilisateurs() {
       
       {/* Sections dynamiques */}
       {sections.map((section, index) => (
-        <div key={index} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 mb-6">
+        <div key={index} id={section.paginationKey} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 mb-6">
           <h2 className="text-xl font-semibold text-orange-500 mb-4">
-            {section.title} ({section.data.length})
+            {section.title} ({pagination[section.paginationKey].total})
           </h2>
           
           <div className="relative">
@@ -380,6 +529,13 @@ export function Utilisateurs() {
               <p className="text-slate-400 text-center py-4">{section.emptyMessage}</p>
             )}
           </div>
+          
+          {/* Pagination pour chaque section */}
+          <Pagination 
+            section={section.paginationKey} 
+            data={section.data} 
+            paginationData={pagination[section.paginationKey]} 
+          />
         </div>
       ))}
 

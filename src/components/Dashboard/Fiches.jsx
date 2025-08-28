@@ -19,6 +19,13 @@ export function Fiches() {
     total: 0,
     pages: 1
   });
+  const [responseModal, setResponseModal] = useState({
+    show: false,
+    success: false,
+    message: '',
+    response: ''
+  });
+  const [sending, setSending] = useState(false);
 
   const { toPDF, targetRef } = usePDF({filename: 'fiche-predemarrage.pdf'});
   const modalRef = useRef(null);
@@ -166,6 +173,57 @@ export function Fiches() {
     toPDF();
   };
 
+  const sendDiagnostic = async (checklist) => {
+    setSending(true);
+    try {
+      // Préparer les données pour l'API de diagnostic
+      const diagnosticData = {
+        marque: checklist.brand || "Inconnue",
+        kilometrage: parseInt(checklist.mileage) || 0,
+        km: parseInt(checklist.mileage) || 0
+      };
+
+      // Appeler l'API de diagnostic
+      const diagnosticResponse = await fetch('https://yeofranck2001-mecalink.hf.space/diagnostic', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(diagnosticData)
+      });
+
+      if (!diagnosticResponse.ok) {
+        throw new Error('Erreur lors de l\'appel à l\'API de diagnostic');
+      }
+
+      const diagnosticResult = await diagnosticResponse.json();
+      
+      // Envoyer la notification au client
+      const notificationResponse = await api.post('/admin/notifications/send-to-device-tokens', {
+        title: 'Diagnostic de votre véhicule',
+        body: diagnosticResult.diagnostic,
+        deviceTokens: [checklist.user.deviceToken]
+      });
+
+      setResponseModal({
+        show: true,
+        success: true,
+        message: `Diagnostic envoyé avec succès à ${checklist.user?.name || 'l\'utilisateur'}`,
+        response: diagnosticResult.diagnostic
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi du diagnostic:', error);
+      setResponseModal({
+        show: true,
+        success: false,
+        message: 'Erreur lors de l\'envoi du diagnostic',
+        response: ''
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -212,10 +270,9 @@ export function Fiches() {
               checklists.map(checklist => (
                 <div
                   key={checklist._id} 
-                  className="bg-slate-800 p-3 rounded-lg flex justify-between items-center hover:bg-slate-700 transition-colors cursor-pointer"
-                  onClick={() => showDetailsModal(checklist._id)}
+                  className="bg-slate-800 p-3 rounded-lg flex justify-between items-center hover:bg-slate-700 transition-colors"
                 >
-                  <div className="flex-1">
+                  <div className="flex-1 cursor-pointer" onClick={() => showDetailsModal(checklist._id)}>
                     <p className="font-medium text-white">{checklist.user?.name || 'Non renseigné'}</p>
                     <div className="grid grid-cols-2 gap-2 mt-1">
                       <div>
@@ -231,19 +288,34 @@ export function Fiches() {
                     </div>
                   </div>
                   
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showDetailsModal(checklist._id);
-                    }}
-                    className="p-2 text-orange-500 hover:text-orange-400 transition-colors"
-                    title="Voir détails"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendDiagnostic(checklist);
+                      }}
+                      disabled={sending}
+                      className="p-2 text-blue-500 hover:text-blue-400 transition-colors disabled:opacity-50"
+                      title="Envoyer un diagnostic"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showDetailsModal(checklist._id);
+                      }}
+                      className="p-2 text-orange-500 hover:text-orange-400 transition-colors"
+                      title="Voir détails"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -429,6 +501,59 @@ export function Fiches() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de réponse */}
+      {responseModal.show && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div className="sticky top-0 bg-white z-10 p-4 border-b border-slate-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-900">
+                {responseModal.success ? 'Réponse envoyée' : 'Erreur'}
+              </h2>
+              <button 
+                onClick={() => setResponseModal({ show: false, success: false, message: '', response: '' })}
+                className="p-1 text-slate-900 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto max-h-[70vh]">
+              {responseModal.success ? (
+                <>
+                  <div className="mb-4 p-3 bg-green-100 text-green-800 rounded-lg">
+                    <p className="font-medium">{responseModal.message}</p>
+                  </div>
+                  
+                  {responseModal.response && (
+                    <div className="mt-4">
+                      <h3 className="font-semibold text-slate-900 mb-2">Contenu envoyé :</h3>
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <p className="text-slate-800 whitespace-pre-line">{responseModal.response}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="p-3 bg-red-100 text-red-800 rounded-lg">
+                  <p className="font-medium">{responseModal.message}</p>
+                </div>
+              )}
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setResponseModal({ show: false, success: false, message: '', response: '' })}
+                  className="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors"
+                >
+                  Fermer
+                </button>
+              </div>
             </div>
           </div>
         </div>

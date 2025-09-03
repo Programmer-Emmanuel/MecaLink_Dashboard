@@ -6,6 +6,7 @@ import images from "../../constants/images";
 export function Dashboard({ contenu }) {
     const navigate = useNavigate();
     const [showModal, setShowModal] = useState(false);
+    const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
     const location = useLocation();
 
     const handleLogout = () => {
@@ -19,7 +20,29 @@ export function Dashboard({ contenu }) {
         if (!token) {
             navigate('/connexion');
         }
+
+        // Intercepteur pour les réponses API
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {
+            const response = await originalFetch(...args);
+            if (response.status === 401) {
+                setShowSessionExpiredModal(true);
+            }
+            return response;
+        };
+
+        // Nettoyer l'intercepteur lors du démontage du composant
+        return () => {
+            window.fetch = originalFetch;
+        };
     }, [navigate]);
+
+    const handleReconnect = () => {
+        ReactSecureStorage.removeItem('token');
+        setShowSessionExpiredModal(false);
+        navigate('/connexion');
+        window.location.reload();
+    };
 
     const isActive = (path) => location.pathname === path
         ? 'bg-orange-500 text-white rounded-lg p-3 transition-all' 
@@ -188,6 +211,34 @@ export function Dashboard({ contenu }) {
                                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
                             >
                                 Déconnexion
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de session expirée (401) */}
+            {showSessionExpiredModal && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-slate-800 p-6 rounded-xl max-w-sm w-full border border-orange-500/30 shadow-xl">
+                        <div className="flex items-start gap-3 mb-4">
+                            <div className="bg-orange-500/20 p-2 rounded-lg">
+                                <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-orange-500">Session expirée</h3>
+                                <p className="text-sm text-slate-400 mt-1">Votre session a expiré ou vous n'avez plus accès</p>
+                            </div>
+                        </div>
+                        <p className="mb-6 text-slate-300 pl-11">Veuillez vous reconnecter pour continuer.</p>
+                        <div className="flex justify-end">
+                            <button
+                                onClick={handleReconnect}
+                                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                            >
+                                Se reconnecter
                             </button>
                         </div>
                     </div>
